@@ -26,7 +26,8 @@ export default {
 				foreground: 'hsl(var(--foreground))',
 				primary: {
 					DEFAULT: 'hsl(var(--primary))',
-					foreground: 'hsl(var(--primary-foreground))'
+					foreground: 'hsl(var(--primary-foreground))',
+					glow: 'hsl(var(--primary-glow))'
 				},
 				secondary: {
 					DEFAULT: 'hsl(var(--secondary))',
@@ -51,6 +52,14 @@ export default {
 				card: {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
+				},
+				warning: 'hsl(var(--warning))',
+				success: 'hsl(var(--success))',
+				tactical: {
+					overlay: 'hsl(var(--camera-overlay))',
+					detection: 'hsl(var(--detection-box))',
+					match: 'hsl(var(--match-highlight))',
+					unknown: 'hsl(var(--unknown-highlight))'
 				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
@@ -84,11 +93,47 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				'pulse-glow': {
+					'0%, 100%': {
+						opacity: '1',
+						transform: 'scale(1)'
+					},
+					'50%': {
+						opacity: '0.8',
+						transform: 'scale(1.05)'
+					}
+				},
+				'scan-line': {
+					'0%': {
+						transform: 'translateY(-100%)'
+					},
+					'100%': {
+						transform: 'translateY(100vh)'
+					}
+				},
+				'detection-bounce': {
+					'0%, 100%': {
+						transform: 'scale(1)',
+						borderColor: 'hsl(var(--detection-box))'
+					},
+					'50%': {
+						transform: 'scale(1.02)',
+						borderColor: 'hsl(var(--match-highlight))'
+					}
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
+				'scan-line': 'scan-line 3s linear infinite',
+				'detection-bounce': 'detection-bounce 0.6s ease-in-out infinite'
+			},
+			boxShadow: {
+				'tactical': 'var(--shadow-tactical)',
+				'glow': 'var(--shadow-glow)',
+				'active': 'var(--shadow-active)'
 			}
 		}
 	},

@@ -18,12 +18,17 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        tactical: "bg-gradient-to-r from-primary to-primary-glow text-primary-foreground hover:shadow-glow font-semibold",
+        danger: "bg-gradient-to-r from-destructive to-red-600 text-destructive-foreground hover:shadow-active font-semibold",
+        success: "bg-gradient-to-r from-accent to-green-600 text-accent-foreground hover:shadow-active font-semibold",
+        stealth: "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/50"
       },
       size: {
         default: "h-10 px-4 py-2",
         sm: "h-9 rounded-md px-3",
         lg: "h-11 rounded-md px-8",
         icon: "h-10 w-10",
+        tactical: "h-14 px-8 text-base font-semibold tracking-wide"
       },
     },
     defaultVariants: {
