@@ -2,16 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { FaceDetection } from '@/components/FaceDetection';
 import { DetectionLog } from '@/components/DetectionLog';
 import { ControlPanel } from '@/components/ControlPanel';
+import { FileExplorer } from '@/components/FileExplorer';
+import { UploadComponent } from '@/components/UploadComponent';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Eye, 
   EyeOff, 
   Shield, 
   AlertTriangle,
-  Settings
+  Settings,
+  Files,
+  Upload
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { useDetectionLogs } from '@/hooks/useDetectionLogs';
 
 interface Detection {
   id: string;
@@ -29,6 +35,10 @@ const Index = () => {
   const [detections, setDetections] = useState<Detection[]>([]);
   const [sessionTime, setSessionTime] = useState(0);
   const [showInterface, setShowInterface] = useState(true);
+  const [activeTab, setActiveTab] = useState('detection');
+
+  // Real detection logs from Supabase
+  const { logs: realLogs, loading: logsLoading } = useDetectionLogs();
 
   // Session timer
   useEffect(() => {
@@ -41,8 +51,10 @@ const Index = () => {
     return () => clearInterval(interval);
   }, [isActive]);
 
-  // Calculate statistics
+  // Calculate statistics from both UI detections and real logs
   const matchCount = detections.filter(d => !d.id.startsWith('unknown')).length;
+  const totalRealDetections = realLogs.length;
+  const realMatchCount = realLogs.filter(log => log.match_status === 'known').length;
 
   const handleDetection = (detection: Detection) => {
     setDetections(prev => [detection, ...prev]);
@@ -187,42 +199,102 @@ const Index = () => {
         </div>
       </div>
 
-      {/* Main Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-200px)]">
-        {/* Camera Feed - Takes most space */}
-        <div className="lg:col-span-2 h-full">
-          <FaceDetection
-            onDetection={handleDetection}
-            isActive={isActive}
-            mode={mode}
-          />
-        </div>
+      {/* Main Layout with Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="detection">Détection</TabsTrigger>
+          <TabsTrigger value="logs">Logs ({totalRealDetections})</TabsTrigger>
+          <TabsTrigger value="files">Fichiers</TabsTrigger>
+          <TabsTrigger value="upload">Upload</TabsTrigger>
+        </TabsList>
 
-        {/* Right Panel - Controls and Log */}
-        <div className="space-y-6 h-full flex flex-col">
-          {/* Control Panel */}
-          <div className="flex-shrink-0">
-            <ControlPanel
-              isActive={isActive}
-              onToggleActive={() => setIsActive(!isActive)}
-              mode={mode}
-              onModeChange={setMode}
-              sessionTime={sessionTime}
-              detectionCount={detections.length}
-              matchCount={matchCount}
-            />
-          </div>
+        <TabsContent value="detection" className="space-y-0">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-280px)]">
+            {/* Camera Feed - Takes most space */}
+            <div className="lg:col-span-2 h-full">
+              <FaceDetection
+                onDetection={handleDetection}
+                isActive={isActive}
+                mode={mode}
+              />
+            </div>
 
-          {/* Detection Log */}
-          <div className="flex-1 min-h-0">
-            <DetectionLog
-              detections={detections}
-              onExport={handleExport}
-              onClear={handleClear}
-            />
+            {/* Right Panel - Controls and Log */}
+            <div className="space-y-6 h-full flex flex-col">
+              {/* Control Panel */}
+              <div className="flex-shrink-0">
+                <ControlPanel
+                  isActive={isActive}
+                  onToggleActive={() => setIsActive(!isActive)}
+                  mode={mode}
+                  onModeChange={setMode}
+                  sessionTime={sessionTime}
+                  detectionCount={totalRealDetections}
+                  matchCount={realMatchCount}
+                />
+              </div>
+
+              {/* Detection Log */}
+              <div className="flex-1 min-h-0">
+                <DetectionLog
+                  detections={detections}
+                  onExport={handleExport}
+                  onClear={handleClear}
+                />
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </TabsContent>
+
+        <TabsContent value="logs" className="space-y-4">
+          <div className="h-[calc(100vh-280px)]">
+            {logsLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full"></div>
+              </div>
+            ) : (
+              <div className="space-y-4 h-full overflow-auto">
+                <h3 className="text-lg font-semibold">Logs de détection en temps réel</h3>
+                <div className="grid gap-4">
+                  {realLogs.map((log) => (
+                    <div key={log.id} className="p-4 border rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <Badge variant={log.match_status === 'known' ? 'default' : 'secondary'}>
+                          {log.match_status}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">
+                          {new Date(log.timestamp).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="font-medium">Face ID: {log.face_id}</p>
+                      {log.confidence && (
+                        <p className="text-sm">Confiance: {(log.confidence * 100).toFixed(1)}%</p>
+                      )}
+                      {log.location && (
+                        <p className="text-sm text-muted-foreground">
+                          Location: {JSON.parse(log.location).lat?.toFixed(4)}, {JSON.parse(log.location).lng?.toFixed(4)}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="files" className="space-y-4">
+          <div className="h-[calc(100vh-280px)]">
+            <FileExplorer />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="upload" className="space-y-4">
+          <div className="h-[calc(100vh-280px)] overflow-auto">
+            <UploadComponent />
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Mobile Bottom Bar */}
       <div className="lg:hidden fixed bottom-4 left-4 right-4">
