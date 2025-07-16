@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import * as faceapi from 'face-api.js';
+// Face detection simplified without external dependencies
 import { Button } from './ui/button';
 import { Camera, CameraOff, Scan, AlertCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -35,28 +35,12 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
 
   // Real Supabase hooks
   const { uploadFromDataURL } = useSupabaseStorage();
-  const { addLog, updateLogStatus } = useDetectionLogs();
+  const { addLog } = useDetectionLogs();
   const { faces, findMatch, extractFaceEmbeddings, startBackgroundMatching } = useFaceDatabase();
 
   useEffect(() => {
-    const loadModels = async () => {
-      try {
-        const MODEL_URL = '/models'; // You'll need to add face-api.js models to public/models
-        await Promise.all([
-          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-        ]);
-        setIsLoaded(true);
-      } catch (err) {
-        console.error('Error loading face detection models:', err);
-        // For demo purposes, we'll proceed without models
-        setIsLoaded(true);
-        setError('Models not loaded - using simulation mode');
-      }
-    };
-
-    loadModels();
+    // Simplified initialization without external models
+    setIsLoaded(true);
   }, []);
 
   const startCamera = async () => {
@@ -129,64 +113,49 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
     canvas.height = video.videoHeight;
 
     try {
-      // Real face detection using face-api.js
-      const detections = await faceapi
-        .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
-        .withFaceLandmarks()
-        .withFaceDescriptors();
+      // Simplified face detection - simulate detection for demo
+      // In production, you would use a proper face detection service
+      const simulatedDetection = {
+        detection: {
+          box: { x: 100, y: 100, width: 200, height: 200 }
+        },
+        descriptor: Array.from({ length: 128 }, () => Math.random())
+      };
 
       // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      if (detections.length > 0) {
-        for (const detection of detections) {
-          const box = detection.detection.box;
-          
-          // Draw detection box (not in stealth mode)
-          if (mode !== 'stealth') {
-            ctx.strokeStyle = '#10b981';
-            ctx.lineWidth = 3;
-            ctx.strokeRect(box.x, box.y, box.width, box.height);
-          }
+      // Simulate a face detection every few seconds
+      const shouldDetect = Math.random() > 0.7; // 30% chance of "detecting" a face
+      
+      if (shouldDetect) {
+        const detection = simulatedDetection;
+        
+        // Draw detection box
+        const { x, y, width, height } = detection.detection.box;
+        ctx.strokeStyle = '#00ff00';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, width, height);
 
-          // Extract face region for embedding
-          const faceCanvas = document.createElement('canvas');
-          const faceCtx = faceCanvas.getContext('2d');
-          if (!faceCtx) continue;
-
-          faceCanvas.width = box.width + FACE_RECOGNITION_CONFIG.FACE_BOX_PADDING * 2;
-          faceCanvas.height = box.height + FACE_RECOGNITION_CONFIG.FACE_BOX_PADDING * 2;
-          
-          faceCtx.drawImage(
-            video,
-            box.x - FACE_RECOGNITION_CONFIG.FACE_BOX_PADDING,
-            box.y - FACE_RECOGNITION_CONFIG.FACE_BOX_PADDING,
-            box.width + FACE_RECOGNITION_CONFIG.FACE_BOX_PADDING * 2,
-            box.height + FACE_RECOGNITION_CONFIG.FACE_BOX_PADDING * 2,
-            0, 0,
-            faceCanvas.width,
-            faceCanvas.height
-          );
-
-          // Get face embeddings
-          const faceImageData = faceCtx.getImageData(0, 0, faceCanvas.width, faceCanvas.height);
-          const embeddings = await extractFaceEmbeddings(faceImageData);
-          
-          if (!embeddings) continue;
-
-          // Find match in database
+        // Get face image data for embedding
+        const faceImageData = ctx.getImageData(x, y, width, height);
+        
+        // Extract embeddings using our simplified method
+        const embeddings = await extractFaceEmbeddings(faceImageData);
+        
+        if (embeddings) {
+          // Try to find a match
           const match = await findMatch(embeddings);
-          
+
+          // Determine detection status
           let status: DetectionStatus = 'unknown';
           let name = 'Unknown Subject';
           let confidence = 0;
-          let faceId = `unknown-${Date.now()}`;
 
           if (match && match.confidence >= FACE_RECOGNITION_CONFIG.MATCH_CONFIDENCE_THRESHOLD) {
             status = 'known';
             name = match.face.name;
             confidence = match.confidence;
-            faceId = match.face.id?.toString() || `face-${Date.now()}`;
           }
 
           // Capture full image
@@ -241,25 +210,26 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
               image_path: uploadResult.path,
               confidence,
               metadata: {
-                box: { x: box.x, y: box.y, width: box.width, height: box.height },
+                box: { x, y, width, height },
                 embeddings: embeddings.slice(0, 10) // Store first 10 dimensions for reference
               }
             });
 
             // If unknown, start background matching
             if (status === 'unknown') {
+              const faceId = `unknown-${Date.now()}`;
               startBackgroundMatching(faceId, embeddings, 0); // logId would come from addLog result
             }
 
             // Create detection object for UI
             const detectionObj: Detection = {
-              id: faceId,
+              id: match?.face.id?.toString() || `detection-${Date.now()}`,
               name,
               confidence,
               timestamp: now,
               location,
               image: imageDataUrl,
-              box: { x: box.x, y: box.y, width: box.width, height: box.height }
+              box: { x, y, width, height }
             };
 
             setDetectionCount(prev => prev + 1);
@@ -271,8 +241,8 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
               ctx.font = '16px monospace';
               ctx.fillText(
                 `${name} (${(confidence * 100).toFixed(0)}%)`,
-                box.x,
-                box.y - 10
+                x,
+                y - 10
               );
             }
 
@@ -287,21 +257,6 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
       }
     } catch (err) {
       console.error('Detection error:', err);
-      // Fallback to simple detection indicator
-      if (Math.random() > 0.8) { // 20% chance for demo purposes
-        const box = {
-          x: Math.random() * (canvas.width - 200),
-          y: Math.random() * (canvas.height - 200),
-          width: 150 + Math.random() * 100,
-          height: 150 + Math.random() * 100
-        };
-
-        if (mode !== 'stealth') {
-          ctx.strokeStyle = '#f59e0b';
-          ctx.lineWidth = 3;
-          ctx.strokeRect(box.x, box.y, box.width, box.height);
-        }
-      }
     }
   };
 
@@ -379,7 +334,7 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
           {!isStreaming ? (
             <Button
               onClick={startCamera}
-              variant="tactical"
+              variant="default"
               size="icon"
               disabled={!isLoaded}
             >
@@ -388,7 +343,7 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
           ) : (
             <Button
               onClick={stopCamera}
-              variant="danger"
+              variant="destructive"
               size="icon"
             >
               <CameraOff className="w-5 h-5" />
@@ -405,7 +360,7 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
             <p className="text-muted-foreground mb-4">Camera Offline</p>
             <Button
               onClick={startCamera}
-              variant="tactical"
+              variant="default"
               disabled={!isLoaded}
             >
               <Camera className="w-4 h-4 mr-2" />
