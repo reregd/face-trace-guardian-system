@@ -186,7 +186,7 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
             status = 'known';
             name = match.face.name;
             confidence = match.confidence;
-            faceId = match.face.face_id;
+            faceId = match.face.id?.toString() || `face-${Date.now()}`;
           }
 
           // Capture full image
@@ -236,7 +236,7 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
               timestamp: now.toISOString(),
               location: location ? JSON.stringify(location) : undefined,
               camera: 'primary',
-              face_id: faceId,
+              face_id: match?.face.id,
               match_status: status,
               image_path: uploadResult.path,
               confidence,

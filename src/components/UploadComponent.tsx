@@ -129,7 +129,7 @@ export function UploadComponent({
     setUploadFiles(prev => prev.filter(f => f.id !== id));
   };
 
-  const uploadFile = async (uploadFile: UploadFile) => {
+  const uploadSingleFile = async (uploadFile: UploadFile) => {
     if (uploadFile.status !== 'pending') return;
 
     setUploadFiles(prev => prev.map(f => 
@@ -182,7 +182,7 @@ export function UploadComponent({
     const pendingFiles = uploadFiles.filter(f => f.status === 'pending');
     
     for (const file of pendingFiles) {
-      await uploadFile(file);
+      await uploadSingleFile(file);
     }
   };
 
@@ -281,7 +281,7 @@ export function UploadComponent({
                       {uploadFile.status === 'pending' && (
                         <Button
                           size="sm"
-                          onClick={() => uploadFile(uploadFile)}
+                          onClick={() => uploadSingleFile(uploadFile)}
                           disabled={uploading}
                         >
                           Upload

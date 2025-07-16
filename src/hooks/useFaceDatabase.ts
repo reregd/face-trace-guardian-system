@@ -5,12 +5,11 @@ import { FACE_RECOGNITION_CONFIG } from '@/constants';
 
 export interface FaceData {
   id?: number;
-  face_id: string;
   name: string;
   embeddings: number[];
-  image_url?: string;
+  image_path?: string;
   metadata?: any;
-  status: 'active' | 'inactive';
+  status: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -39,7 +38,7 @@ export function useFaceDatabase() {
 
       if (fetchError) throw fetchError;
 
-      setFaces(data || []);
+      setFaces((data || []) as FaceData[]);
     } catch (err) {
       console.error('Load faces error:', err);
       setError(err instanceof Error ? err.message : 'Failed to load faces');
@@ -60,8 +59,8 @@ export function useFaceDatabase() {
 
       if (insertError) throw insertError;
 
-      setFaces(prev => [data, ...prev]);
-      return data;
+      setFaces(prev => [data as FaceData, ...prev]);
+      return data as FaceData;
     } catch (err) {
       console.error('Add face error:', err);
       setError(err instanceof Error ? err.message : 'Failed to add face');
@@ -215,11 +214,7 @@ export function useFaceDatabase() {
         const match = await findMatch(embeddings);
         
         if (match) {
-          // Update the log status and move the image
-          const { updateLogStatus } = await import('./useDetectionLogs');
-          const { moveFile } = await import('./useSupabaseStorage');
-          
-          // This would be called from the component that has access to these hooks
+          // Log the background match found
           console.log('Background match found:', match);
           return true;
         }

@@ -5,9 +5,9 @@ import { DetectionStatus } from '@/constants';
 export interface DetectionLog {
   id?: number;
   timestamp: string;
-  location?: string;
+  location?: any; // JSON object for { lat, lon, accuracy }
   camera?: string;
-  face_id: string;
+  face_id?: number;
   match_status: DetectionStatus;
   image_path: string;
   confidence?: number;
@@ -33,9 +33,9 @@ export function useDetectionLogs() {
       if (insertError) throw insertError;
 
       // Update local state
-      setLogs(prev => [data, ...prev]);
+      setLogs(prev => [data as DetectionLog, ...prev]);
       
-      return data;
+      return data as DetectionLog;
     } catch (err) {
       console.error('Add log error:', err);
       setError(err instanceof Error ? err.message : 'Failed to add log');
@@ -91,7 +91,7 @@ export function useDetectionLogs() {
 
       if (fetchError) throw fetchError;
 
-      setLogs(data || []);
+      setLogs((data || []) as DetectionLog[]);
     } catch (err) {
       console.error('Load logs error:', err);
       setError(err instanceof Error ? err.message : 'Failed to load logs');
@@ -133,7 +133,7 @@ export function useDetectionLogs() {
 
       if (fetchError) throw fetchError;
 
-      setLogs(data || []);
+      setLogs((data || []) as DetectionLog[]);
     } catch (err) {
       console.error('Search logs error:', err);
       setError(err instanceof Error ? err.message : 'Failed to search logs');

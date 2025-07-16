@@ -14,7 +14,86 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      event_logs: {
+        Row: {
+          camera: string | null
+          confidence: number | null
+          created_at: string | null
+          face_id: number | null
+          id: number
+          image_path: string | null
+          location: Json | null
+          match_status: Database["public"]["Enums"]["detection_status"]
+          metadata: Json | null
+          timestamp: string | null
+        }
+        Insert: {
+          camera?: string | null
+          confidence?: number | null
+          created_at?: string | null
+          face_id?: number | null
+          id?: number
+          image_path?: string | null
+          location?: Json | null
+          match_status: Database["public"]["Enums"]["detection_status"]
+          metadata?: Json | null
+          timestamp?: string | null
+        }
+        Update: {
+          camera?: string | null
+          confidence?: number | null
+          created_at?: string | null
+          face_id?: number | null
+          id?: number
+          image_path?: string | null
+          location?: Json | null
+          match_status?: Database["public"]["Enums"]["detection_status"]
+          metadata?: Json | null
+          timestamp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_logs_face_id_fkey"
+            columns: ["face_id"]
+            isOneToOne: false
+            referencedRelation: "faces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      faces: {
+        Row: {
+          created_at: string | null
+          embeddings: number[]
+          id: number
+          image_path: string | null
+          metadata: Json | null
+          name: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          embeddings: number[]
+          id?: number
+          image_path?: string | null
+          metadata?: Json | null
+          name: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          embeddings?: number[]
+          id?: number
+          image_path?: string | null
+          metadata?: Json | null
+          name?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +102,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      detection_status: "known" | "unknown" | "pending"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +229,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      detection_status: ["known", "unknown", "pending"],
+    },
   },
 } as const
