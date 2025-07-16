@@ -19,4 +19,26 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  optimizeDeps: {
+    include: [
+      '@tensorflow/tfjs',
+      '@tensorflow/tfjs-core',
+      '@tensorflow/tfjs-converter',
+      '@tensorflow/tfjs-backend-webgl',
+      '@tensorflow/tfjs-backend-cpu'
+    ],
+    exclude: ['@tensorflow/tfjs-node']
+  },
+  define: {
+    global: 'globalThis',
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          tensorflow: ['@tensorflow/tfjs']
+        }
+      }
+    }
+  }
 }));
