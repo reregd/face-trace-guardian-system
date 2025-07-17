@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      enhanced_sync_logs: {
+        Row: {
+          created_at: string | null
+          id: number
+          metadata: Json | null
+          type: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          metadata?: Json | null
+          type: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          metadata?: Json | null
+          type?: string
+        }
+        Relationships: []
+      }
       event_logs: {
         Row: {
           camera: string | null
@@ -61,6 +82,51 @@ export type Database = {
           },
         ]
       }
+      face_embeddings: {
+        Row: {
+          embedding: string
+          id: number
+          image_url: string
+          metadata: Json | null
+          name: string | null
+          user_id: string | null
+        }
+        Insert: {
+          embedding: string
+          id?: never
+          image_url: string
+          metadata?: Json | null
+          name?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          embedding?: string
+          id?: never
+          image_url?: string
+          metadata?: Json | null
+          name?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      face_vectors: {
+        Row: {
+          created_at: string | null
+          embedding: string
+          id: number
+        }
+        Insert: {
+          created_at?: string | null
+          embedding: string
+          id?: number
+        }
+        Update: {
+          created_at?: string | null
+          embedding?: string
+          id?: number
+        }
+        Relationships: []
+      }
       faces: {
         Row: {
           created_at: string | null
@@ -99,7 +165,25 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      search_similar_faces: {
+        Args:
+          | Record<PropertyKey, never>
+          | {
+              input_embedding: string
+              similarity_threshold?: number
+              max_results?: number
+            }
+          | {
+              input_embedding: string
+              similarity_threshold?: number
+              max_results?: number
+            }
+          | { input_image: string; similarity_threshold?: number }
+        Returns: {
+          face_id: number
+          similarity: number
+        }[]
+      }
     }
     Enums: {
       detection_status: "known" | "unknown" | "pending"

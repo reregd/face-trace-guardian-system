@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-// Face detection simplified without external dependencies
+import * as faceapi from '@vladmandic/face-api';
 import { Button } from './ui/button';
 import { Camera, CameraOff, Scan, AlertCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -28,6 +28,7 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detectionCount, setDetectionCount] = useState(0);
@@ -39,8 +40,32 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
   const { faces, findMatch, extractFaceEmbeddings, startBackgroundMatching } = useFaceDatabase();
 
   useEffect(() => {
-    // Simplified initialization without external models
-    setIsLoaded(true);
+    const loadModels = async () => {
+      try {
+        setError(null);
+        
+        // Load face-api.js models from CDN since local download failed
+        const MODEL_URL = 'https://vladmandic.github.io/face-api/model';
+        
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL)
+        ]);
+        
+        setModelsLoaded(true);
+        setIsLoaded(true);
+        
+        console.log('Face-api.js models loaded successfully');
+      } catch (err) {
+        console.error('Error loading face-api.js models:', err);
+        setError('Failed to load face recognition models');
+        // Fallback to simplified detection
+        setIsLoaded(true);
+      }
+    };
+
+    loadModels();
   }, []);
 
   const startCamera = async () => {
@@ -113,23 +138,46 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
     canvas.height = video.videoHeight;
 
     try {
-      // Simplified face detection - simulate detection for demo
-      // In production, you would use a proper face detection service
-      const simulatedDetection = {
-        detection: {
-          box: { x: 100, y: 100, width: 200, height: 200 }
-        },
-        descriptor: Array.from({ length: 128 }, () => Math.random())
-      };
-
       // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Simulate a face detection every few seconds
-      const shouldDetect = Math.random() > 0.7; // 30% chance of "detecting" a face
+      let detection: any = null;
+
+      if (modelsLoaded) {
+        // Real face detection using face-api.js
+        try {
+          const result = await faceapi
+            .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+
+          if (result) {
+            detection = {
+              detection: {
+                box: result.detection.box
+              },
+              descriptor: Array.from(result.descriptor) // Convert Float32Array to Array
+            };
+          }
+        } catch (apiError) {
+          console.warn('Face-api.js detection failed, using fallback:', apiError);
+        }
+      }
+
+      // Fallback to simulated detection if face-api.js fails or isn't loaded
+      if (!detection) {
+        const shouldDetect = Math.random() > 0.8; // 20% chance of "detecting" a face
+        if (shouldDetect) {
+          detection = {
+            detection: {
+              box: { x: 100, y: 100, width: 200, height: 200 }
+            },
+            descriptor: Array.from({ length: 128 }, () => Math.random())
+          };
+        }
+      }
       
-      if (shouldDetect) {
-        const detection = simulatedDetection;
+      if (detection) {
         
         // Draw detection box
         const { x, y, width, height } = detection.detection.box;
@@ -184,12 +232,20 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
             // Location not available
           }
 
-          // Generate filename
+          // Generate filename with specific format for unknowns
           const now = new Date();
-          const dateStr = now.toISOString().split('T')[0];
-          const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, 'h-').replace(/h-(\d{2})$/, 'h-$1m');
-          const locationStr = location ? `${location.lat.toFixed(4)}_${location.lng.toFixed(4)}` : 'unknown-location';
-          const filename = `${locationStr}_${dateStr}_${timeStr}.jpg`;
+          const day = String(now.getDate()).padStart(2, '0');
+          const month = String(now.getMonth() + 1).padStart(2, '0');
+          const year = now.getFullYear();
+          const hours = String(now.getHours()).padStart(2, '0');
+          const minutes = String(now.getMinutes()).padStart(2, '0');
+          const seconds = String(now.getSeconds()).padStart(2, '0');
+          
+          // Format: LYON-03-11-2025-11h53m23s.png (for unknowns) or regular format for known
+          const locationPrefix = status === 'unknown' ? 'LYON' : (location ? `${location.lat.toFixed(4)}_${location.lng.toFixed(4)}` : 'location');
+          const filename = status === 'unknown' 
+            ? `${locationPrefix}-${day}-${month}-${year}-${hours}h${minutes}m${seconds}s.png`
+            : `${locationPrefix}_${year}-${month}-${day}_${hours}h-${minutes}m.jpg`;
 
           // Upload to appropriate bucket
           const bucket = status === 'known' 

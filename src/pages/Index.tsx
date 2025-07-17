@@ -4,6 +4,7 @@ import { DetectionLog } from '@/components/DetectionLog';
 import { ControlPanel } from '@/components/ControlPanel';
 import { FileExplorer } from '@/components/FileExplorer';
 import { UploadComponent } from '@/components/UploadComponent';
+import { BucketAnalyzer } from '@/components/BucketAnalyzer';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -201,11 +202,12 @@ const Index = () => {
 
       {/* Main Layout with Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="detection">Détection</TabsTrigger>
           <TabsTrigger value="logs">Logs ({totalRealDetections})</TabsTrigger>
           <TabsTrigger value="files">Fichiers</TabsTrigger>
           <TabsTrigger value="upload">Upload</TabsTrigger>
+          <TabsTrigger value="analyzer">Analyse</TabsTrigger>
         </TabsList>
 
         <TabsContent value="detection" className="space-y-0">
@@ -292,6 +294,16 @@ const Index = () => {
         <TabsContent value="upload" className="space-y-4">
           <div className="h-[calc(100vh-280px)] overflow-auto">
             <UploadComponent />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="analyzer" className="space-y-4">
+          <div className="h-[calc(100vh-280px)] overflow-auto">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              <BucketAnalyzer bucketName="religion" />
+              <BucketAnalyzer bucketName="faces_known" />
+              <BucketAnalyzer bucketName="faces_unknown" />
+            </div>
           </div>
         </TabsContent>
       </Tabs>
