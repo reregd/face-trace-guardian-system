@@ -6,6 +6,7 @@ import { toast } from '@/hooks/use-toast';
 import { useSupabaseStorage } from '@/hooks/useSupabaseStorage';
 import { useDetectionLogs } from '@/hooks/useDetectionLogs';
 import { useFaceDatabase } from '@/hooks/useFaceDatabase';
+import { FaceComparison } from './FaceComparison';
 import { FACE_RECOGNITION_CONFIG, DetectionStatus } from '@/constants';
 
 interface Detection {
@@ -32,6 +33,8 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detectionCount, setDetectionCount] = useState(0);
+  const [comparison, setComparison] = useState<any>(null);
+  const [faceMemory, setFaceMemory] = useState(new Map<string, number>());
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Real Supabase hooks
@@ -124,6 +127,16 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
     }
   };
 
+  // Check if face is high quality
+  const isHighQuality = (box: any): boolean => {
+    return box.width > 100 && box.height > 100;
+  };
+
+  // Generate hash from face embedding for deduplication
+  const hashVector = (vec: number[]): string => {
+    return vec.slice(0, 8).map(n => n.toFixed(2)).join('-');
+  };
+
   const detectFaces = async () => {
     if (!videoRef.current || !canvasRef.current) return;
 
@@ -141,174 +154,206 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
       // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      let detection: any = null;
+      let detections: any[] = [];
 
       if (modelsLoaded) {
-        // Real face detection using face-api.js
+        // Real face detection with landmarks using face-api.js
         try {
-          const result = await faceapi
-            .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+          const results = await faceapi
+            .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
             .withFaceLandmarks()
-            .withFaceDescriptor();
+            .withFaceDescriptors();
 
-          if (result) {
-            detection = {
-              detection: {
-                box: result.detection.box
-              },
-              descriptor: Array.from(result.descriptor) // Convert Float32Array to Array
-            };
-          }
+          detections = results.map(result => ({
+            detection: {
+              box: result.detection.box
+            },
+            landmarks: result.landmarks,
+            descriptor: Array.from(result.descriptor)
+          }));
         } catch (apiError) {
           console.warn('Face-api.js detection failed, using fallback:', apiError);
         }
       }
 
-      // Fallback to simulated detection if face-api.js fails or isn't loaded
-      if (!detection) {
-        const shouldDetect = Math.random() > 0.8; // 20% chance of "detecting" a face
+      // Fallback to simulated detection if face-api.js fails
+      if (detections.length === 0) {
+        const shouldDetect = Math.random() > 0.8;
         if (shouldDetect) {
-          detection = {
+          detections = [{
             detection: {
               box: { x: 100, y: 100, width: 200, height: 200 }
             },
             descriptor: Array.from({ length: 128 }, () => Math.random())
-          };
+          }];
         }
       }
-      
-      if (detection) {
-        
-        // Draw detection box
+
+      // Process each detected face
+      for (const detection of detections) {
         const { x, y, width, height } = detection.detection.box;
+        
+        // Only process high-quality faces
+        if (!isHighQuality(detection.detection.box)) continue;
+
+        // Check for duplicates using face hash
+        const hash = hashVector(detection.descriptor);
+        const count = faceMemory.get(hash) || 0;
+        
+        if (count >= 3) continue; // Skip if already captured 3 times
+
+        // Draw detection box and landmarks
         ctx.strokeStyle = '#00ff00';
         ctx.lineWidth = 2;
         ctx.strokeRect(x, y, width, height);
 
-        // Get face image data for embedding
+        // Draw landmarks if available (simplified)
+        if (detection.landmarks && modelsLoaded) {
+          // Draw landmark points manually since type issues with face-api
+          detection.landmarks.positions.forEach((point: any) => {
+            ctx.fillStyle = '#ff0000';
+            ctx.fillRect(point.x - 1, point.y - 1, 2, 2);
+          });
+        }
+
+        // Extract embeddings
         const faceImageData = ctx.getImageData(x, y, width, height);
-        
-        // Extract embeddings using our simplified method
         const embeddings = await extractFaceEmbeddings(faceImageData);
         
-        if (embeddings) {
-          // Try to find a match
-          const match = await findMatch(embeddings);
+        if (!embeddings) continue;
 
-          // Determine detection status
-          let status: DetectionStatus = 'unknown';
-          let name = 'Unknown Subject';
-          let confidence = 0;
+        // Try to find a match
+        const match = await findMatch(embeddings);
 
-          if (match && match.confidence >= FACE_RECOGNITION_CONFIG.MATCH_CONFIDENCE_THRESHOLD) {
-            status = 'known';
-            name = match.face.name;
-            confidence = match.confidence;
-          }
-
-          // Capture full image
-          const captureCanvas = document.createElement('canvas');
-          captureCanvas.width = video.videoWidth;
-          captureCanvas.height = video.videoHeight;
-          const captureCtx = captureCanvas.getContext('2d');
-          captureCtx?.drawImage(video, 0, 0);
-
-          // Get geolocation
-          let location: { lat: number; lng: number; accuracy?: number } | undefined;
-          try {
-            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-              navigator.geolocation.getCurrentPosition(
-                resolve, 
-                reject, 
-                FACE_RECOGNITION_CONFIG.GEOLOCATION_OPTIONS
-              );
-            });
-            location = {
-              lat: position.coords.latitude,
-              lng: position.coords.longitude,
-              accuracy: position.coords.accuracy
-            };
-          } catch {
-            // Location not available
-          }
-
-          // Generate filename with specific format for unknowns
-          const now = new Date();
-          const day = String(now.getDate()).padStart(2, '0');
-          const month = String(now.getMonth() + 1).padStart(2, '0');
-          const year = now.getFullYear();
-          const hours = String(now.getHours()).padStart(2, '0');
-          const minutes = String(now.getMinutes()).padStart(2, '0');
-          const seconds = String(now.getSeconds()).padStart(2, '0');
+        // Check if similarity >= 35% (0.35)
+        if (match && match.confidence >= 0.35) {
+          // Capture face image
+          const faceCanvas = document.createElement('canvas');
+          faceCanvas.width = width;
+          faceCanvas.height = height;
+          const faceCtx = faceCanvas.getContext('2d')!;
+          faceCtx.drawImage(video, x, y, width, height, 0, 0, width, height);
           
-          // Format: LYON-03-11-2025-11h53m23s.png (for unknowns) or regular format for known
-          const locationPrefix = status === 'unknown' ? 'LYON' : (location ? `${location.lat.toFixed(4)}_${location.lng.toFixed(4)}` : 'location');
-          const filename = status === 'unknown' 
-            ? `${locationPrefix}-${day}-${month}-${year}-${hours}h${minutes}m${seconds}s.png`
-            : `${locationPrefix}_${year}-${month}-${day}_${hours}h-${minutes}m.jpg`;
-
-          // Upload to appropriate bucket
-          const bucket = status === 'known' 
-            ? FACE_RECOGNITION_CONFIG.STORAGE_BUCKETS.FACES_KNOWN
-            : FACE_RECOGNITION_CONFIG.STORAGE_BUCKETS.FACES_UNKNOWN;
-
-          const imageDataUrl = captureCanvas.toDataURL('image/jpeg', FACE_RECOGNITION_CONFIG.IMAGE_QUALITY);
-          const uploadResult = await uploadFromDataURL(bucket, imageDataUrl, filename);
-
-          if (uploadResult) {
-            // Save to event logs
-            await addLog({
-              timestamp: now.toISOString(),
-              location: location ? JSON.stringify(location) : undefined,
-              camera: 'primary',
-              face_id: match?.face.id,
-              match_status: status,
-              image_path: uploadResult.path,
-              confidence,
-              metadata: {
-                box: { x, y, width, height },
-                embeddings: embeddings.slice(0, 10) // Store first 10 dimensions for reference
-              }
-            });
-
-            // If unknown, start background matching
-            if (status === 'unknown') {
-              const faceId = `unknown-${Date.now()}`;
-              startBackgroundMatching(faceId, embeddings, 0); // logId would come from addLog result
+          // Show comparison UI
+          setComparison({
+            capturedFace: {
+              imageData: faceCanvas.toDataURL('image/jpeg'),
+              box: { x, y, width, height },
+              embeddings
+            },
+            matchedFace: {
+              id: match.face.id!,
+              name: match.face.name,
+              imageUrl: match.face.image_path || '',
+              similarity: match.confidence,
+              folderPath: match.face.image_path ? match.face.image_path.split('/').slice(0, -1).join('/') : 'religion/unknown'
             }
+          });
+          
+          // Update memory
+          setFaceMemory(prev => new Map(prev.set(hash, count + 1)));
+          return; // Stop processing other faces when showing comparison
+        }
 
-            // Create detection object for UI
-            const detectionObj: Detection = {
-              id: match?.face.id?.toString() || `detection-${Date.now()}`,
-              name,
-              confidence,
-              timestamp: now,
-              location,
-              image: imageDataUrl,
-              box: { x, y, width, height }
-            };
+        // If no match found, handle as unknown
+        let status: DetectionStatus = 'unknown';
+        let name = 'Unknown Subject';
+        let confidence = 0;
 
-            setDetectionCount(prev => prev + 1);
-            onDetection(detectionObj);
+        // Capture full image
+        const captureCanvas = document.createElement('canvas');
+        captureCanvas.width = video.videoWidth;
+        captureCanvas.height = video.videoHeight;
+        const captureCtx = captureCanvas.getContext('2d');
+        captureCtx?.drawImage(video, 0, 0);
 
-            // Visual feedback
-            if (mode !== 'stealth') {
-              ctx.fillStyle = status === 'known' ? '#3b82f6' : '#f59e0b';
-              ctx.font = '16px monospace';
-              ctx.fillText(
-                `${name} (${(confidence * 100).toFixed(0)}%)`,
-                x,
-                y - 10
-              );
+        // Get geolocation
+        let location: { lat: number; lng: number; accuracy?: number } | undefined;
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(
+              resolve, 
+              reject, 
+              FACE_RECOGNITION_CONFIG.GEOLOCATION_OPTIONS
+            );
+          });
+          location = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy
+          };
+        } catch {
+          // Location not available
+        }
+
+        // Generate filename with specific format for unknowns
+        const now = new Date();
+        const day = String(now.getDate()).padStart(2, '0');
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const year = now.getFullYear();
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        
+        // Format: LYON-03-11-2025-11h53m23s.png (for unknowns)
+        const locationPrefix = 'LYON';
+        const filename = `${locationPrefix}-${day}-${month}-${year}-${hours}h${minutes}m${seconds}s.png`;
+
+        // Upload to faces_unknown bucket
+        const bucket = FACE_RECOGNITION_CONFIG.STORAGE_BUCKETS.FACES_UNKNOWN;
+
+        const imageDataUrl = captureCanvas.toDataURL('image/jpeg', FACE_RECOGNITION_CONFIG.IMAGE_QUALITY);
+        const uploadResult = await uploadFromDataURL(bucket, imageDataUrl, filename);
+
+        if (uploadResult) {
+          // Save to event logs
+          await addLog({
+            timestamp: now.toISOString(),
+            location: location ? JSON.stringify(location) : undefined,
+            camera: 'primary',
+            face_id: null,
+            match_status: status,
+            image_path: uploadResult.path,
+            confidence,
+            metadata: {
+              box: { x, y, width, height },
+              embeddings: embeddings.slice(0, 10) // Store first 10 dimensions for reference
             }
+          });
 
-            // Audio alert for known faces
-            if (status === 'known' && mode !== 'stealth') {
-              const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+D0r2oeBDSH0fDVfTEGKXrH8N6PQQoWYbvz7KNOFANKo+TyrGYeBjWK1O/QfDEGKXzL8t2QQQoWYbPz7qRPEwxGr+j4r2YeBjWL2O/QfDEGK3zK8d2QQQoWYbXs76RPEwxGquj4rmYeBjiOz+/VfzIGKXrH8N6PQQkWY7vy66NSFANKpe/1rWYeBjSJ0O/VfzIGKXrH8N6PQQkWZLJs55ZLEgNKrt/vw3kiBDOOzu7ZfjQHL3LD6tqWTA8PV73s6qBVEgpDpOf0r2seBjWJ0++ZgkYUR7LzylpsWwUxk9vp2YIzACJi2+PetVwqhvhPAAAA');
-              audio.volume = 0.3;
-              audio.play().catch(() => {});
-            }
+          // If unknown, start background matching
+          if (status === 'unknown') {
+            const faceId = `unknown-${Date.now()}`;
+            startBackgroundMatching(faceId, embeddings, 0); // logId would come from addLog result
           }
+
+          // Create detection object for UI
+          const detectionObj: Detection = {
+            id: `detection-${Date.now()}`,
+            name,
+            confidence,
+            timestamp: now,
+            location,
+            image: imageDataUrl,
+            box: { x, y, width, height }
+          };
+
+          setDetectionCount(prev => prev + 1);
+          onDetection(detectionObj);
+
+          // Visual feedback
+          if (mode !== 'stealth') {
+            ctx.fillStyle = '#f59e0b'; // Orange for unknown
+            ctx.font = '16px monospace';
+            ctx.fillText(
+              `${name} (${(confidence * 100).toFixed(0)}%)`,
+              x,
+              y - 10
+            );
+          }
+
+          // Update memory to prevent duplicates
+          setFaceMemory(prev => new Map(prev.set(hash, count + 1)));
         }
       }
     } catch (err) {
@@ -328,6 +373,29 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
 
   return (
     <div className="relative w-full h-full bg-background rounded-lg overflow-hidden shadow-tactical">
+      {/* Face Comparison Modal */}
+      {comparison && (
+        <FaceComparison
+          capturedFace={comparison.capturedFace}
+          matchedFace={comparison.matchedFace}
+          onConfirm={() => {
+            toast({
+              title: "Image confirmée",
+              description: "L'image a été sauvegardée avec succès",
+            });
+            setComparison(null);
+          }}
+          onReject={() => {
+            toast({
+              title: "Match rejeté",
+              description: "L'image n'a pas été sauvegardée",
+            });
+            setComparison(null);
+          }}
+          onClose={() => setComparison(null)}
+        />
+      )}
+
       {/* Camera View */}
       <div className="relative w-full h-full">
         <video
