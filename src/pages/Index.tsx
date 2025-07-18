@@ -5,6 +5,7 @@ import { ControlPanel } from '@/components/ControlPanel';
 import { FileExplorer } from '@/components/FileExplorer';
 import { UploadComponent } from '@/components/UploadComponent';
 import { BucketAnalyzer } from '@/components/BucketAnalyzer';
+import { BucketScanner } from '@/components/BucketScanner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -299,10 +300,13 @@ const Index = () => {
 
         <TabsContent value="analyzer" className="space-y-4">
           <div className="h-[calc(100vh-280px)] overflow-auto">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              <BucketAnalyzer bucketName="religion" />
-              <BucketAnalyzer bucketName="faces_known" />
-              <BucketAnalyzer bucketName="faces_unknown" />
+            <div className="space-y-6">
+              <BucketScanner />
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <BucketAnalyzer bucketName="religion" />
+                <BucketAnalyzer bucketName="faces_known" />
+                <BucketAnalyzer bucketName="faces_unknown" />
+              </div>
             </div>
           </div>
         </TabsContent>
