@@ -93,9 +93,9 @@ export function ControlPanel({
           <label className="text-sm font-medium text-foreground">Mode Opérationnel</label>
           <div className="grid grid-cols-1 gap-2">
             {[
-              { key: 'identification' as const, label: 'Identification', desc: 'Détection et reconnaissance standard' },
-              { key: 'training' as const, label: 'Entraînement', desc: 'Ajout de nouveaux visages à la base' },
-              { key: 'stealth' as const, label: 'Furtif', desc: 'Surveillance discrète sans affichage' }
+              { key: 'identification' as const, label: 'Identification', desc: 'UI visible, reconnaissance active avec journal' },
+              { key: 'training' as const, label: 'Entraînement', desc: 'Capture manuelle pour enrichir la base' },
+              { key: 'stealth' as const, label: 'Furtif', desc: 'Surveillance silencieuse, pas d\'affichage UI' }
             ].map((modeOption) => (
               <button
                 key={modeOption.key}

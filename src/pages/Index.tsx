@@ -6,6 +6,7 @@ import { FileExplorer } from '@/components/FileExplorer';
 import { UploadComponent } from '@/components/UploadComponent';
 import { BucketAnalyzer } from '@/components/BucketAnalyzer';
 import { BucketScanner } from '@/components/BucketScanner';
+import { SystemLogs } from '@/components/SystemLogs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -203,11 +204,10 @@ const Index = () => {
 
       {/* Main Layout with Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="detection">Détection</TabsTrigger>
           <TabsTrigger value="logs">Logs ({totalRealDetections})</TabsTrigger>
-          <TabsTrigger value="files">Fichiers</TabsTrigger>
-          <TabsTrigger value="upload">Upload</TabsTrigger>
+          <TabsTrigger value="images">Images</TabsTrigger>
           <TabsTrigger value="analyzer">Analyse</TabsTrigger>
         </TabsList>
 
@@ -251,50 +251,68 @@ const Index = () => {
 
         <TabsContent value="logs" className="space-y-4">
           <div className="h-[calc(100vh-280px)]">
-            {logsLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full"></div>
-              </div>
-            ) : (
-              <div className="space-y-4 h-full overflow-auto">
-                <h3 className="text-lg font-semibold">Logs de détection en temps réel</h3>
-                <div className="grid gap-4">
-                  {realLogs.map((log) => (
-                    <div key={log.id} className="p-4 border rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <Badge variant={log.match_status === 'known' ? 'default' : 'secondary'}>
-                          {log.match_status}
-                        </Badge>
-                        <span className="text-sm text-muted-foreground">
-                          {new Date(log.timestamp).toLocaleString()}
-                        </span>
-                      </div>
-                      <p className="font-medium">Face ID: {log.face_id}</p>
-                      {log.confidence && (
-                        <p className="text-sm">Confiance: {(log.confidence * 100).toFixed(1)}%</p>
-                      )}
-                      {log.location && (
-                        <p className="text-sm text-muted-foreground">
-                          Location: {JSON.parse(log.location).lat?.toFixed(4)}, {JSON.parse(log.location).lng?.toFixed(4)}
-                        </p>
-                      )}
+            <Tabs defaultValue="system" className="w-full h-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="system">Logs Système</TabsTrigger>
+                <TabsTrigger value="detection">Détections ({totalRealDetections})</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="system" className="mt-4 h-[calc(100%-60px)]">
+                <SystemLogs />
+              </TabsContent>
+              
+              <TabsContent value="detection" className="mt-4 h-[calc(100%-60px)]">
+                {logsLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full"></div>
+                  </div>
+                ) : (
+                  <div className="space-y-4 h-full overflow-auto">
+                    <h3 className="text-lg font-semibold">Logs de détection en temps réel</h3>
+                    <div className="grid gap-4">
+                      {realLogs.map((log) => (
+                        <div key={log.id} className="p-4 border rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <Badge variant={log.match_status === 'known' ? 'default' : 'secondary'}>
+                              {log.match_status}
+                            </Badge>
+                            <span className="text-sm text-muted-foreground">
+                              {new Date(log.timestamp).toLocaleString()}
+                            </span>
+                          </div>
+                          <p className="font-medium">Face ID: {log.face_id}</p>
+                          {log.confidence && (
+                            <p className="text-sm">Confiance: {(log.confidence * 100).toFixed(1)}%</p>
+                          )}
+                          {log.location && (
+                            <p className="text-sm text-muted-foreground">
+                              Location: {JSON.parse(log.location).lat?.toFixed(4)}, {JSON.parse(log.location).lng?.toFixed(4)}
+                            </p>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
           </div>
         </TabsContent>
 
-        <TabsContent value="files" className="space-y-4">
+        <TabsContent value="images" className="space-y-4">
           <div className="h-[calc(100vh-280px)]">
-            <FileExplorer />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="upload" className="space-y-4">
-          <div className="h-[calc(100vh-280px)] overflow-auto">
-            <UploadComponent />
+            <Tabs defaultValue="files" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="files">Fichiers</TabsTrigger>
+                <TabsTrigger value="upload">Upload</TabsTrigger>
+              </TabsList>
+              <TabsContent value="files" className="mt-4">
+                <FileExplorer />
+              </TabsContent>
+              <TabsContent value="upload" className="mt-4">
+                <UploadComponent />
+              </TabsContent>
+            </Tabs>
           </div>
         </TabsContent>
 

@@ -143,8 +143,18 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
 
     if (!ctx) return;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // Set canvas dimensions to match video
+    const displayWidth = video.offsetWidth;
+    const displayHeight = video.offsetHeight;
+    const videoWidth = video.videoWidth;
+    const videoHeight = video.videoHeight;
+    
+    canvas.width = displayWidth;
+    canvas.height = displayHeight;
+
+    // Calculate scaling factors for proper alignment
+    const scaleX = displayWidth / videoWidth;
+    const scaleY = displayHeight / videoHeight;
 
     try {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -189,18 +199,24 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
         
         if (count >= 3) continue;
 
-        // Draw detection box
+        // Scale coordinates for display alignment
+        const scaledX = x * scaleX;
+        const scaledY = y * scaleY;
+        const scaledWidth = width * scaleX;
+        const scaledHeight = height * scaleY;
+
+        // Draw aligned detection box
         ctx.strokeStyle = '#00ff00';
         ctx.lineWidth = 2;
-        ctx.strokeRect(x, y, width, height);
+        ctx.strokeRect(scaledX, scaledY, scaledWidth, scaledHeight);
 
-        // Draw landmarks if available
+        // Draw aligned landmarks if available
         if (detection.landmarks && modelsLoaded) {
           try {
             if (detection.landmarks.positions) {
               detection.landmarks.positions.forEach((point: any) => {
                 ctx.fillStyle = '#ff0000';
-                ctx.fillRect(point.x - 1, point.y - 1, 2, 2);
+                ctx.fillRect(point.x * scaleX - 1, point.y * scaleY - 1, 2, 2);
               });
             }
           } catch (e) {
@@ -208,31 +224,32 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
           }
         }
 
-        const faceImageData = ctx.getImageData(x, y, width, height);
+        const faceImageData = ctx.getImageData(scaledX, scaledY, scaledWidth, scaledHeight);
         const embeddings = await extractFaceEmbeddings(faceImageData);
         
         if (!embeddings) continue;
 
+        // ✅ COMPARAISON AUTOMATIQUE - Immédiate avec bucket
         const match = await findMatch(embeddings);
 
         if (match && match.confidence >= 0.35) {
           // Create face image for comparison
           const faceCanvas = document.createElement('canvas');
-          faceCanvas.width = width;
-          faceCanvas.height = height;
+          faceCanvas.width = scaledWidth;
+          faceCanvas.height = scaledHeight;
           const faceCtx = faceCanvas.getContext('2d')!;
-          faceCtx.drawImage(video, x, y, width, height, 0, 0, width, height);
+          faceCtx.drawImage(video, scaledX, scaledY, scaledWidth, scaledHeight, 0, 0, scaledWidth, scaledHeight);
           
-          // Show comparison UI
+          // ✅ AFFICHAGE AUTOMATIQUE de la comparaison (≥ 35%)
           setComparison({
             capturedFace: {
               imageData: faceCanvas.toDataURL('image/jpeg'),
-              box: { x, y, width, height },
+              box: { x: scaledX, y: scaledY, width: scaledWidth, height: scaledHeight },
               embeddings
             },
             matchedFace: {
               id: match.face.id!,
-              name: match.face.name,
+              name: match.face.name || 'Inconnu',
               imageUrl: match.face.image_path || '',
               similarity: match.confidence,
               folderPath: match.face.image_path ? match.face.image_path.split('/').slice(0, -1).join('/') : 'religion/unknown'
