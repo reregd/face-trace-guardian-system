@@ -7,6 +7,7 @@ import { UploadComponent } from '@/components/UploadComponent';
 import { BucketAnalyzer } from '@/components/BucketAnalyzer';
 import { BucketScanner } from '@/components/BucketScanner';
 import { SystemLogs } from '@/components/SystemLogs';
+import { AdminPanel } from '@/components/AdminPanel';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -204,11 +205,12 @@ const Index = () => {
 
       {/* Main Layout with Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="detection">Détection</TabsTrigger>
           <TabsTrigger value="logs">Logs ({totalRealDetections})</TabsTrigger>
           <TabsTrigger value="images">Images</TabsTrigger>
           <TabsTrigger value="analyzer">Analyse</TabsTrigger>
+          <TabsTrigger value="admin">Admin</TabsTrigger>
         </TabsList>
 
         <TabsContent value="detection" className="space-y-0">
@@ -308,7 +310,13 @@ const Index = () => {
               </TabsList>
               <TabsContent value="files" className="mt-4">
                 <FileExplorer />
-              </TabsContent>
+        </TabsContent>
+
+        <TabsContent value="admin" className="space-y-4">
+          <div className="h-[calc(100vh-280px)] overflow-auto">
+            <AdminPanel />
+          </div>
+        </TabsContent>
               <TabsContent value="upload" className="mt-4">
                 <UploadComponent />
               </TabsContent>
