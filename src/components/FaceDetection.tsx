@@ -1,11 +1,15 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as faceapi from '@vladmandic/face-api';
 import { Button } from './ui/button';
+import { Badge } from './ui/badge';
 import { Camera, CameraOff, Scan, AlertCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useSupabaseStorage } from '@/hooks/useSupabaseStorage';
 import { useDetectionLogs } from '@/hooks/useDetectionLogs';
 import { useFaceDatabase } from '@/hooks/useFaceDatabase';
+import { useEmotionDetection } from '@/hooks/useEmotionDetection';
+import { useEmbeddingCache } from '@/hooks/useEmbeddingCache';
+import { useImageCompression } from '@/hooks/useImageCompression';
 import { FaceComparison } from './FaceComparison';
 import { FACE_RECOGNITION_CONFIG, DetectionStatus } from '@/constants';
 
@@ -19,8 +23,22 @@ interface Detection {
   box: { x: number; y: number; width: number; height: number };
 }
 
+interface EnhancedDetection extends Detection {
+  emotions?: {
+    dominant: string;
+    confidence: number;
+    all: Record<string, number>;
+  };
+  ageGender?: {
+    age: number;
+    gender: string;
+    confidence: number;
+  };
+  compressed?: boolean;
+}
+
 interface FaceDetectionProps {
-  onDetection: (detection: Detection) => void;
+  onDetection: (detection: EnhancedDetection) => void;
   isActive: boolean;
   mode: 'identification' | 'training' | 'stealth';
 }
@@ -37,18 +55,27 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
   const [faceMemory, setFaceMemory] = useState(new Map<string, number>());
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Real Supabase hooks
+  // Enhanced hooks
   const { uploadFromDataURL } = useSupabaseStorage();
   const { addLog } = useDetectionLogs();
   const { faces, findMatch, extractFaceEmbeddings, startBackgroundMatching } = useFaceDatabase();
+  const { detectEmotionsAndAge, loadModels: loadEmotionModels } = useEmotionDetection();
+  const { getCachedEmbedding, setCachedEmbedding, getCacheStats } = useEmbeddingCache();
+  const { compressImage } = useImageCompression();
 
   useEffect(() => {
     const loadModels = async () => {
       try {
         setError(null);
         
-        // Load face-api.js models from CDN
+        // Load face-api.js models with WebGPU support if available
         const MODEL_URL = 'https://vladmandic.github.io/face-api/model';
+        
+        // Check for WebGPU support
+        const hasWebGPU = 'gpu' in navigator;
+        if (hasWebGPU) {
+          console.log('WebGPU detected, enabling GPU acceleration');
+        }
         
         await Promise.all([
           faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
@@ -56,10 +83,14 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
           faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL)
         ]);
         
+        // Load emotion and age/gender models
+        await loadEmotionModels();
+        
         setModelsLoaded(true);
         setIsLoaded(true);
         
         console.log('Face-api.js models loaded successfully');
+        console.log('Cache stats:', getCacheStats());
       } catch (err) {
         console.error('Error loading face-api.js models:', err);
         setError('Failed to load face recognition models');
@@ -68,7 +99,7 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
     };
 
     loadModels();
-  }, []);
+  }, [loadEmotionModels, getCacheStats]);
 
   const startCamera = async () => {
     try {
@@ -225,7 +256,17 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
         }
 
         const faceImageData = ctx.getImageData(scaledX, scaledY, scaledWidth, scaledHeight);
-        const embeddings = await extractFaceEmbeddings(faceImageData);
+        
+        // Check cache first for performance
+        const embeddingHash = hashVector(detection.descriptor);
+        let embeddings = getCachedEmbedding(embeddingHash);
+        
+        if (!embeddings) {
+          embeddings = await extractFaceEmbeddings(faceImageData);
+          if (embeddings) {
+            setCachedEmbedding(embeddingHash, embeddings);
+          }
+        }
         
         if (!embeddings) continue;
 
@@ -240,12 +281,17 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
           const faceCtx = faceCanvas.getContext('2d')!;
           faceCtx.drawImage(video, scaledX, scaledY, scaledWidth, scaledHeight, 0, 0, scaledWidth, scaledHeight);
           
+          // Get emotion and age/gender data
+          const emotionAge = await detectEmotionsAndAge(video);
+          
           // ✅ AFFICHAGE AUTOMATIQUE de la comparaison (≥ 35%)
           setComparison({
             capturedFace: {
               imageData: faceCanvas.toDataURL('image/jpeg'),
               box: { x: scaledX, y: scaledY, width: scaledWidth, height: scaledHeight },
-              embeddings
+              embeddings,
+              emotions: emotionAge?.emotions,
+              ageGender: emotionAge?.ageGender
             },
             matchedFace: {
               id: match.face.id!,
@@ -301,7 +347,23 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
         const filename = `${locationPrefix}-${day}-${month}-${year}-${hours}h${minutes}m${seconds}s.png`;
 
         const bucket = FACE_RECOGNITION_CONFIG.STORAGE_BUCKETS.FACES_UNKNOWN;
-        const imageDataUrl = captureCanvas.toDataURL('image/jpeg', FACE_RECOGNITION_CONFIG.IMAGE_QUALITY);
+        let imageDataUrl = captureCanvas.toDataURL('image/jpeg', FACE_RECOGNITION_CONFIG.IMAGE_QUALITY);
+        
+        // ✅ COMPRESSION D'IMAGE avant upload
+        try {
+          const blob = await fetch(imageDataUrl).then(r => r.blob());
+          // Convert Blob to File for compression
+          const file = new File([blob], filename, { type: blob.type, lastModified: Date.now() });
+          const compressedBlob = await compressImage(file, { maxSizeKB: 300, quality: 0.7 });
+          imageDataUrl = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.readAsDataURL(compressedBlob);
+          });
+        } catch (compressionError) {
+          console.warn('Image compression failed, using original:', compressionError);
+        }
+        
         const uploadResult = await uploadFromDataURL(bucket, imageDataUrl, filename);
 
         if (uploadResult) {
@@ -324,14 +386,15 @@ export function FaceDetection({ onDetection, isActive, mode }: FaceDetectionProp
             startBackgroundMatching(faceId, embeddings, 0);
           }
 
-          const detectionObj: Detection = {
+          const detectionObj: EnhancedDetection = {
             id: `detection-${Date.now()}`,
             name,
             confidence,
             timestamp: now,
             location,
             image: imageDataUrl,
-            box: { x, y, width, height }
+            box: { x, y, width, height },
+            compressed: true // Indicate this image was compressed
           };
 
           setDetectionCount(prev => prev + 1);

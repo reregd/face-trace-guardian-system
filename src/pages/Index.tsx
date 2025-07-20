@@ -7,6 +7,7 @@ import { UploadComponent } from '@/components/UploadComponent';
 import { BucketAnalyzer } from '@/components/BucketAnalyzer';
 import { BucketScanner } from '@/components/BucketScanner';
 import { SystemLogs } from '@/components/SystemLogs';
+import { BatchProcessor } from '@/components/BatchProcessor';
 import { AdminPanel } from '@/components/AdminPanel';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -36,7 +37,7 @@ interface Detection {
 const Index = () => {
   const [isActive, setIsActive] = useState(false);
   const [mode, setMode] = useState<'identification' | 'training' | 'stealth'>('identification');
-  const [detections, setDetections] = useState<Detection[]>([]);
+  const [detections, setDetections] = useState<any[]>([]);
   const [sessionTime, setSessionTime] = useState(0);
   const [showInterface, setShowInterface] = useState(true);
   const [activeTab, setActiveTab] = useState('detection');
@@ -60,7 +61,7 @@ const Index = () => {
   const totalRealDetections = realLogs.length;
   const realMatchCount = realLogs.filter(log => log.match_status === 'known').length;
 
-  const handleDetection = (detection: Detection) => {
+  const handleDetection = (detection: any) => {
     setDetections(prev => [detection, ...prev]);
     
     // Show toast for new detections
