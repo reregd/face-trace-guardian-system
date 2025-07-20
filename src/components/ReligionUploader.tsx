@@ -37,11 +37,7 @@ export function ReligionUploader() {
     try {
       const { data, error } = await supabase.storage
         .from('religion')
-        .upload(fileName, file, {
-          onUploadProgress: (progress) => {
-            setProgress((progress.loaded / progress.total) * 100);
-          }
-        });
+        .upload(fileName, file);
 
       if (error) {
         setMessage(`❌ Erreur d'upload: ${error.message}`);

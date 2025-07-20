@@ -11,7 +11,7 @@ export async function compareFaceEmbedding(embedding: number[]): Promise<FaceMat
   try {
     // Appel à la fonction search_similar_faces de Supabase
     const { data, error } = await supabase.rpc('search_similar_faces', {
-      input_embedding: embedding,
+      input_embedding: `[${embedding.join(',')}]`,
       similarity_threshold: 0.35,
       max_results: 1
     });
@@ -27,10 +27,10 @@ export async function compareFaceEmbedding(embedding: number[]): Promise<FaceMat
 
     const match = data[0];
     return {
-      id: match.face_id || match.id,
+      id: match.face_id.toString(),
       similarity: match.similarity,
-      path: match.image_url || match.path || '',
-      name: match.name || 'Inconnu'
+      path: '',
+      name: 'Inconnu'
     };
   } catch (error) {
     console.error('Face comparison error:', error);

@@ -24,8 +24,7 @@ interface FaceRecord {
   name: string | null;
   user_id: string | null;
   metadata: any;
-  created_at: string;
-  embedding: number[];
+  embedding: string;
 }
 
 export function FacesAdminViewer() {
@@ -42,7 +41,7 @@ export function FacesAdminViewer() {
     try {
       const { data, error } = await supabase
         .from('face_embeddings')
-        .select('*')
+        .select('id, image_url, name, user_id, metadata, embedding')
         .order('id', { ascending: false });
 
       if (error) {
@@ -255,7 +254,7 @@ export function FacesAdminViewer() {
                 <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t">
                   <div className="flex items-center gap-1">
                     <Calendar className="w-3 h-3" />
-                    Ajouté: {new Date(face.created_at).toLocaleDateString('fr-FR')}
+                    ID: {face.id}
                   </div>
                   <div className="flex items-center gap-1">
                     <Tag className="w-3 h-3" />
